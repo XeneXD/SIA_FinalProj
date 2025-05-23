@@ -1,0 +1,4 @@
+Extensions "Live Server"
+Powershell type 'node simple_proxy.js'
+RightClick 'inventory_home.html'
+Click 'Open with Live Server'

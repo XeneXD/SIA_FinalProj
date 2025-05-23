@@ -1,29 +1,29 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
+<head>  <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Inventory ERP</title>
+  <title>Product Management</title>
   <link rel="stylesheet" href="Inventory_home.css">
 </head>
 <body>
   <header>
-    <h1>Inventory ERP System</h1>
+    <h1>Product Management System</h1>
+    <p>Your one-stop shop solution for managing inventory efficiently!</p>
   </header>
-
   <main>
-    <section id="product-list"></section>
-    <section id="product-detail" class="hidden"></section>
-    <section id="inventory-controls">
-      <h2>Inventory Controls</h2>
-      <input type="number" id="stock-input" placeholder="Stock quantity">
-      <button id="update-stock">Update Stock</button>
-      <p id="stock-status"></p>
+    <section id="management-controls">
+        <div class="control-group">
+          <button id="show-add-form">Add New Item</button>
+        </div>
+      </section>
+
+      <section id="product-list"></section>
+      <section id="product-detail" class="hidden"></section>
+          
     </section>
   </main>
-
-  <script src="InventoryJS/inventory_api.js"></script>
-  <script src="InventoryJS/inventory_stock.js"></script>
-  <script src="InventoryJS/inventory_main.js"></script>
+  <script type="module" src="InventoryJS/inventory_main.js"></script>
+  <script type="module" src="InventoryJS/inventory_crud.js"></script>
+  <script type="module" src="InventoryJS/inventory_stock.js"></script>
 </body>
 </html>

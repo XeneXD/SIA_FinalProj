@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Edit Inventory Item</title>
+  <link rel="stylesheet" href="Inventory_home.css">
+  <style>
+    /* Additional styles specific to edit page */
+    body {
+      padding: 20px;
+    }
+    
+    .edit-container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: white;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+    }
+    
+    .form-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 30px;
+    }
+    
+    .form-title h2 {
+      margin: 0;
+    }
+    
+    .back-button {
+      background: #7f8c8d;
+      color: white;
+      border: none;
+      padding: 8px 15px;
+      border-radius: 4px;
+      text-decoration: none;
+      font-weight: bold;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+    }
+    
+    .back-button:hover {
+      background: #95a5a6;
+    }
+    
+    .save-button {
+      background: #3498db;
+      margin-left: 10px;
+    }
+    
+    .save-button:hover {
+      background: #2980b9;
+    }
+    
+    .delete-button {
+      background: #e74c3c;
+      color: white;
+      border: none;
+      padding: 8px 15px;
+      border-radius: 4px;
+      text-decoration: none;
+      font-weight: bold;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+    }
+    
+    .delete-button:hover {
+      background: #c0392b;
+    }
+    
+    .status {
+      margin-top: 20px;
+      padding: 10px;
+      border-radius: 4px;
+    }
+    
+    .success {
+      background-color: #e8f8f5;
+      border: 1px solid #1abc9c;
+      color: #16a085;
+    }
+    
+    .error {
+      background-color: #fdedec;
+      border: 1px solid #e74c3c;
+      color: #c0392b;
+    }
+  </style>
+</head>
+<body>
+  <div class="edit-container">    <div class="form-title">
+      <h2 id="page-title">Edit Product</h2>
+      <div>
+        <a href="inventory_home.html" class="back-button">← Back to Products</a>
+      </div>
+    </div>
+    
+    <form id="edit-form">
+      <div class="form-group">
+        <label for="item-name">Item Name:</label>
+        <input type="text" id="item-name" required>
+      </div>
+        <div class="form-group">
+        <label for="item-code">Item Code (SKU):</label>
+        <input type="text" id="item-code" readonly title="Item Code cannot be changed after creation">
+        <small>Item codes cannot be changed after creation in ERPNext</small>
+      </div>        <div class="form-group">
+        <label for="item-price">Price:</label>
+        <input type="number" id="item-price" step="0.01" required>
+        <small>Price changes will be updated in ERPNext</small>
+      </div>
+      
+      <div class="form-group">
+        <label for="item-description">Description:</label>
+        <textarea id="item-description"></textarea>
+      </div>
+      
+      <div class="form-group">
+        <label for="item-group">Item Group:</label>
+        <input type="text" id="item-group">
+      </div>
+      
+      <input type="hidden" id="item-id">
+      
+      <div class="form-buttons">
+        <button type="submit" id="save-item" class="save-button">Save Changes</button>
+        <button type="button" id="delete-item" class="delete-button">Delete Item</button>
+      </div>
+    </form>
+    
+    <div id="status" style="display: none;"></div>
+  </div>
+
+  <script type="module">
+    import { fetchProductById, getBestProductName, updateItem } from './InventoryJS/inventory_api.js';
+    import { deleteSelectedItem } from './InventoryJS/inventory_crud.js';
+
+    // Get item ID from URL query parameter
+    const urlParams = new URLSearchParams(window.location.search);
+    const itemId = urlParams.get('id');
+    
+    // Check if we have an item ID
+    if (!itemId) {
+      document.getElementById('page-title').textContent = 'Error';
+      document.getElementById('edit-form').innerHTML = '<p>No item ID provided. Please go back and select an item to edit.</p>';
+    } else {      // Load item data
+      document.addEventListener('DOMContentLoaded', async () => {
+        try {
+          const product = await fetchProductById(itemId);
+          
+          if (!product) {
+            showStatus('Item not found', 'error');
+            return;
+          }
+            // Determine the best display name for the product
+          const productName = getBestProductName(product);
+          
+          // Update form title with item name
+          document.getElementById('page-title').textContent = `Edit: ${productName}`;
+            // Populate the form fields with the product data
+        document.getElementById('item-name').value = product.item_name || '';
+        document.getElementById('item-code').value = product.item_code || '';
+        document.getElementById('item-description').value = product.description || '';
+        document.getElementById('item-group').value = product.item_group || '';
+        document.getElementById('item-id').value = product.name || '';
+          // Format the price properly - handle different price fields from ERPNext
+          let price = null;
+          let priceSource = 'none';
+          
+          // Log all available price fields for debugging
+          console.log('Available price fields for this item:', {
+            price_list_rate: product.price_list_rate,
+            standard_rate: product.standard_rate,
+            valuation_rate: product.valuation_rate
+          });
+          
+          // Check prices in order of priority:
+          // CRITICAL FIX: Use valuation_rate ONLY since this is what's shown in ERPNext (400.00)
+          // This ensures consistent price display throughout the application
+          if (product.valuation_rate !== undefined) {
+            price = product.valuation_rate;
+            priceSource = 'valuation_rate';
+            console.log('Using valuation_rate:', price);
+          }
+          // These fallbacks will only be used if valuation_rate is completely missing
+          else if (product.standard_rate !== undefined) {
+            price = product.standard_rate;
+            priceSource = 'standard_rate';
+            console.log('Using standard_rate:', price);
+          }
+          // Last resort, check price_list_rate
+          else if (product.price_list_rate !== undefined) {
+            price = product.price_list_rate;
+            priceSource = 'price_list_rate';
+            console.log('Using price_list_rate:', price);
+          }
+          
+          // Format the price with 2 decimal places and log both formats
+          if (price !== null) {
+            const formattedPrice = parseFloat(price).toFixed(2);
+            console.log(`Price value: ${price}, Formatted price: ${formattedPrice}, Source: ${priceSource}`);
+            const priceInput = document.getElementById('item-price');
+            priceInput.value = formattedPrice;
+            // Store the original price to detect changes
+            priceInput.setAttribute('data-original-price', formattedPrice);
+            
+            // Add a note about where the price came from
+            const priceNote = document.createElement('small');
+            priceNote.textContent = `(Price from ${priceSource})`;
+            priceNote.style.color = '#666';
+            priceNote.style.marginLeft = '10px';
+            document.getElementById('item-price').insertAdjacentElement('afterend', priceNote);
+          } else {
+            document.getElementById('item-price').value = '0.00';
+            // Still set the data attribute            document.getElementById('item-price').setAttribute('data-original-price', '0.00');
+            console.warn('No price found for this item, defaulting to 0.00');
+          }
+          
+          document.getElementById('item-description').value = product.description || '';
+          document.getElementById('item-group').value = product.item_group || '';
+          document.getElementById('item-id').value = itemId;
+          
+          // Handle form submission
+          document.getElementById('edit-form').addEventListener('submit', handleSubmit);
+          
+        } catch (error) {
+          console.error('Error loading item details:', error);
+          showStatus('Error loading item details: ' + error.message, 'error');
+        }
+      });
+    }
+      // Handle form submission
+    async function handleSubmit(e) {
+      e.preventDefault();
+        try {        // Get form values
+        const itemName = document.getElementById('item-name').value;
+        const itemCode = document.getElementById('item-code').value; // This is now readonly
+        const itemPriceInput = document.getElementById('item-price').value;
+        const itemDescription = document.getElementById('item-description').value;
+        const itemGroup = document.getElementById('item-group').value;
+        const itemId = document.getElementById('item-id').value;
+        
+        // Handle price formatting correctly
+        // Parse as float first to handle any input format, then format to 2 decimal places
+        const rawPrice = parseFloat(itemPriceInput);
+        if (isNaN(rawPrice)) {
+          showStatus('Invalid price format. Please enter a valid number.', 'error');
+          return;
+        }
+        const itemPrice = rawPrice.toFixed(2); // Format to 2 decimal places
+        console.log(`Raw price input: ${itemPriceInput}, Parsed: ${rawPrice}, Formatted: ${itemPrice}`);
+        
+        // Show updating status
+        showStatus('Updating item...', 'info');
+        
+        // Log what we're trying to update
+        console.log('Updating item with the following data:');
+        console.log({          id: itemId,
+          name: itemName,
+          code: itemCode,
+          price: itemPrice,
+          description: itemDescription,
+          group: itemGroup
+        });        // Create payload for API - don't include item_code in the update
+        const payload = {
+          item_name: itemName,
+          // CRITICAL FIX: Update valuation_rate instead of standard_rate to match what's shown in ERPNext
+          valuation_rate: parseFloat(itemPrice),
+          // Also include standard_rate for backward compatibility
+          standard_rate: parseFloat(itemPrice),
+          description: itemDescription,
+          item_group: itemGroup || 'Products'
+        };
+        
+        console.log('Payload for update:', payload);
+        console.log('Price value type:', typeof payload.standard_rate, 'Value:', payload.standard_rate);
+        
+        try {          // Update the item basic information
+          console.log('Updating basic item information...');
+          const result = await updateItem(itemId, payload);          console.log('Basic item update result:', result);
+          
+          // Display a more informative success message
+          const priceChanged = parseFloat(itemPrice) !== parseFloat(document.getElementById('item-price').getAttribute('data-original-price') || '0');
+          const message = `Item updated successfully in ERPNext!${priceChanged ? ' Price has been updated.' : ''}`;
+          showStatus(message, 'success');
+          
+          // Redirect back to main page after 2 seconds
+          setTimeout(() => {
+            window.location.href = 'inventory_home.html';
+          }, 2000);
+        } catch (updateError) {
+          console.error('Error during update operations:', updateError);
+          showStatus('Error updating item: ' + updateError.message, 'error');
+        }
+      } catch (error) {
+        console.error('Error processing form submission:', error);
+        showStatus('Error processing form: ' + error.message, 'error');
+      }
+    }
+    
+    // Show status message
+    function showStatus(message, type) {
+      const statusDiv = document.getElementById('status');
+      statusDiv.textContent = message;
+      statusDiv.style.display = 'block';
+      
+      // Remove any existing classes
+      statusDiv.className = 'status';
+      
+      // Add appropriate class
+      if (type) {
+        statusDiv.classList.add(type);
+      }
+    }
+    
+    document.getElementById('delete-item').addEventListener('click', async () => {
+      if (!itemId) {
+        alert('No item ID found. Cannot delete.');
+        return;
+      }
+  
+      try {
+        await deleteSelectedItem(itemId);
+        alert('Item deleted successfully. Redirecting to product list.');
+        window.location.href = 'inventory_home.html';
+      } catch (error) {
+        console.error('Error deleting item:', error);
+        alert('Failed to delete item. Check console for details.');
+      }
+    });
+  </script>
+</body>
+</html>
